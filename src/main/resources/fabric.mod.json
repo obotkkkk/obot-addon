@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "vnchestaddon",
+  "version": "${version}",
+  "name": "VN Chest Addon",
+  "description": "Meteor Client addon: theo doi + phat sang ruong da mo, va tu dong lay nguyen lieu con thieu theo Material List cua Litematica.",
+  "authors": [
+    "you"
+  ],
+  "contact": {},
+  "environment": "client",
+  "entrypoints": {
+    "meteor": [
+      "com.vnaddon.chest.ChestAddon"
+    ]
+  },
+  "custom": {
+    "meteor-client:color": "80, 200, 255"
+  },
+  "depends": {
+    "java": ">=21",
+    "minecraft": ["${mc_version}"],
+    "meteor-client": "*"
+  },
+  "recommends": {
+    "litematica": "*"
+  }
+}

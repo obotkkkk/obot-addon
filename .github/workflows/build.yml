@@ -1,0 +1,66 @@
+name: Build Addon
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: temurin
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build --stacktrace
+
+      # File .jar cuoi cung nam trong build/libs/ (meteor-obot-1.0.jar)
+      - name: Upload built jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: meteor-obot
+          path: build/libs/*.jar
+          if-no-files-found: error
+
+  # Chi tao 1 GitHub Release "latest" (kem file jar) khi push len nhanh main/master.
+  # Xoa hoac chinh sua job nay neu ban khong muon tu dong tao release.
+  release:
+    needs: build
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: temurin
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build --stacktrace
+
+      - name: Publish dev release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Dev Build
+          prerelease: true
+          files: build/libs/*.jar

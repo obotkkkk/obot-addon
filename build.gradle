@@ -1,0 +1,69 @@
+plugins {
+    id "fabric-loom" version "1.8-SNAPSHOT"
+}
+
+base {
+    archivesBaseName = project.archives_base_name
+    version = project.mod_version
+    group = project.maven_group
+}
+
+repositories {
+    maven {
+        name = "Meteor Dev Releases"
+        url = "https://maven.meteordev.org/releases"
+    }
+    maven {
+        name = "Meteor Dev Snapshots"
+        url = "https://maven.meteordev.org/snapshots"
+    }
+    // Local jars used only to compile against (Litematica / MaliLib), see /libs
+    flatDir {
+        dirs "libs"
+    }
+}
+
+dependencies {
+    // Fabric
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    // Meteor
+    modImplementation "meteordevelopment:meteor-client:${project.minecraft_version}-SNAPSHOT"
+
+    // Litematica + MaliLib are an OPTIONAL (soft) dependency.
+    // We only compile against them (modCompileOnly) and never bundle/shade them into our jar.
+    // At runtime the addon checks FabricLoader.isModLoaded("litematica") before touching any of
+    // its classes, so the addon still loads fine on instances that don't have Litematica installed.
+    modCompileOnly files("libs/litematica-fabric-1_21_4-0_21_7.jar")
+    modCompileOnly files("libs/malilib-fabric-1_21_4-0_23_5.jar")
+}
+
+tasks {
+    processResources {
+        def propertyMap = [
+            "version"   : project.version,
+            "mc_version": project.minecraft_version,
+        ]
+
+        filesMatching("fabric.mod.json") {
+            expand(propertyMap)
+        }
+    }
+
+    jar {
+        // Never accidentally package the soft-dependency jars into our build
+        exclude "litematica*", "malilib*"
+    }
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    withType(JavaCompile).configureEach {
+        it.options.encoding = "UTF-8"
+        it.options.release = 21
+    }
+}
