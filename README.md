@@ -31,6 +31,9 @@ tu mo, tu dong nhieu ruong lien tuc) se can them mot module pathfinding rieng - 
 
 ### Cach 1: Build tren may ban (can Internet, khong bi chan maven.fabricmc.net / maven.meteordev.org)
 
+> Luu y: project nay dung Gradle 9 (do Fabric Loom ban moi/meteor-client snapshot yeu cau) - `./gradlew`
+> se tu tai dung Gradle 9.5.1 ve, ban khong can cai san Gradle tren may.
+
 ```bash
 ./gradlew build
 ```
