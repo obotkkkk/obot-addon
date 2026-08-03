@@ -32,10 +32,9 @@ final class LitematicaAccess {
         MaterialListBase list = DataManager.getInstance().getMaterialList();
         if (list == null) return result;
 
-        // getMaterialsMissingOnly() tra ve cac entry ma so luong thieu (countMissing) > 0.
-        // Neu ban dang dung mot ban Litematica hoi khac ve API, hay thu getMaterialsAll() va tu loc
-        // theo entry.getCountMissing() > 0 thay the.
-        for (MaterialListEntry entry : list.getMaterialsMissingOnly()) {
+        // getMaterialsMissingOnly(boolean refresh) tra ve cac entry ma so luong thieu (countMissing) > 0.
+        // refresh=true de dam bao danh sach luon la ban moi nhat (khop voi HUD material list dang hien).
+        for (MaterialListEntry entry : list.getMaterialsMissingOnly(true)) {
             int missing = entry.getCountMissing();
             if (missing <= 0) continue;
 
