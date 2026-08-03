@@ -1,6 +1,6 @@
-package com.vnaddon.chest.modules;
+package com.obot.chest.modules;
 
-import com.vnaddon.chest.ChestAddon;
+import com.obot.chest.ObotAddon;
 import meteordevelopment.meteorclient.events.entity.player.InteractBlockEvent;
 import meteordevelopment.meteorclient.events.game.GameLeftEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
@@ -8,6 +8,7 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.ColorSetting;
+import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Module;
@@ -33,53 +34,57 @@ import java.util.*;
 
 /**
  * Module 1: "Chest Tracker"
- * - Ghi lai (luu tam thoi, chi trong RAM) item hien co trong tung ruong ma nguoi choi mo ra.
- * - Ruong da mo se duoc "phat sang" (ve outline mau) tren the gioi, ke ca 2 nua cua ruong doi.
- * - Du lieu chi ton tai khi module dang BAT. Tat module hoac roi/vao lai the gioi se xoa sach (reset).
+ * - Remembers (in memory only, nothing saved to disk) the items that were in each chest the player
+ *   opened.
+ * - Opened chests get an outline "glow" rendered in the world, including BOTH halves of a double chest.
+ * - Data only exists while the module is ON. Toggling it off, or leaving/rejoining the world, wipes it
+ *   (reset).
  */
 public class ChestTrackerModule extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgRender = settings.createGroup("Render");
 
     private final Setting<Boolean> onlyChests = sgGeneral.add(new BoolSetting.Builder()
-        .name("chi-tinh-ruong")
-        .description("Chi theo doi Chest/Trapped Chest/Barrel/Shulker Box (bo qua Ender Chest, lo, furnace...).")
+        .name("chests-only")
+        .description("Only track Chest/Trapped Chest/Barrel/Shulker Box (ignores Ender Chest, hoppers, furnaces, etc).")
         .defaultValue(true)
         .build()
     );
 
     private final Setting<SettingColor> lineColor = sgRender.add(new ColorSetting.Builder()
-        .name("mau-vien")
-        .description("Mau vien cua ruong da mo.")
+        .name("line-color")
+        .description("Outline color of opened chests.")
         .defaultValue(new SettingColor(255, 225, 0, 255))
         .build()
     );
 
     private final Setting<SettingColor> fillColor = sgRender.add(new ColorSetting.Builder()
-        .name("mau-fill")
-        .description("Mau to (fill) cua ruong da mo.")
+        .name("fill-color")
+        .description("Fill color of opened chests.")
         .defaultValue(new SettingColor(255, 225, 0, 60))
         .build()
     );
 
-    private final Setting<ShapeMode> shapeMode = sgRender.add(new meteordevelopment.meteorclient.settings.EnumSetting.Builder<ShapeMode>()
-        .name("kieu-ve")
-        .description("Ve line/fill/ca hai.")
+    private final Setting<ShapeMode> shapeMode = sgRender.add(new EnumSetting.Builder<ShapeMode>()
+        .name("shape-mode")
+        .description("Render lines, fill, or both.")
         .defaultValue(ShapeMode.Both)
         .build()
     );
 
-    // pos -> danh sach item hien co trong ruong tai thoi diem cuoi cung duoc cap nhat
+    // pos -> items that were in the chest as of the last update
     private final Map<BlockPos, List<ItemStack>> chestContents = new HashMap<>();
-    // Tat ca vi tri "da tung mo" - dung de ve glow (bao gom ca 2 nua ruong doi)
+    // Every position that has ever been "opened" - used for the glow render (includes both halves
+    // of a double chest).
     private final Set<BlockPos> openedPositions = new HashSet<>();
 
-    // Vi tri cua ruong nguoi choi VUA rIGHT-CLICK, dung de gan noi dung khi man hinh mo len ngay sau do
+    // The chest the player JUST right-clicked, used to attach the contents once the screen opens
+    // right after.
     private BlockPos pendingPrimary = null;
     private BlockPos pendingSecondary = null;
 
     public ChestTrackerModule() {
-        super(ChestAddon.CATEGORY, "chest-tracker", "Theo doi + phat sang cac ruong da mo, luu lai item ben trong.");
+        super(ObotAddon.CATEGORY, "chest-tracker", "Tracks + glows opened chests and remembers what's inside them.");
     }
 
     @Override
@@ -99,9 +104,14 @@ public class ChestTrackerModule extends Module {
         pendingSecondary = null;
     }
 
-    /** Cho AutoCollectModule doc du lieu ma khong can public hoa toan bo field. */
+    /** Lets AutoCollectModule read the data without exposing the whole field publicly. */
     public Map<BlockPos, List<ItemStack>> getChestContents() {
         return chestContents;
+    }
+
+    /** Lets AutoCollectModule know which positions have been opened/tracked (for double-chest glow too). */
+    public Set<BlockPos> getOpenedPositions() {
+        return openedPositions;
     }
 
     @EventHandler
@@ -109,7 +119,8 @@ public class ChestTrackerModule extends Module {
         reset();
     }
 
-    // Buoc 1: khi nguoi choi right-click vao 1 block, ghi nho vi tri (va nua con lai neu la ruong doi)
+    // Step 1: when the player right-clicks a block, remember the position (and the other half if it's
+    // a double chest).
     @EventHandler
     private void onInteractBlock(InteractBlockEvent event) {
         if (mc.world == null) return;
@@ -136,34 +147,35 @@ public class ChestTrackerModule extends Module {
         if (pendingSecondary != null) openedPositions.add(pendingSecondary);
     }
 
-    // Buoc 2: moi tick trong khi man hinh ruong dang mo, cap nhat lai noi dung (item co the con dang
-    // sync tu server vai tick dau, nen cu ghi de lien tuc cho toi khi dong man hinh la an toan nhat)
+    // Step 2: every tick while the chest screen is open, refresh the contents snapshot (items can
+    // still be syncing from the server for the first tick or two, so continuously overwriting until
+    // the screen closes is the safest option).
     @EventHandler
     private void onTick(TickEvent.Post event) {
         if (pendingPrimary == null) return;
         if (mc.currentScreen == null) {
-            // man hinh da dong, khong con gi de cap nhat cho tuong tac nay nua
+            // Screen closed, nothing left to update for this interaction.
             pendingPrimary = null;
             pendingSecondary = null;
             return;
         }
 
         List<ItemStack> stacks = readOpenContainerStacks();
-        if (stacks == null) return; // man hinh dang mo khong phai la 1 container ma minh biet doc
+        if (stacks == null) return; // the open screen isn't a container type we know how to read
 
         List<ItemStack> snapshot = new ArrayList<>(stacks.size());
         for (ItemStack s : stacks) snapshot.add(s.copy());
 
         chestContents.put(pendingPrimary, snapshot);
         if (pendingSecondary != null) {
-            // Voi ruong doi, Minecraft gop chung 1 inventory 54 o cho ca 2 nua - de don gian va tranh
-            // dem trung item khi tong hop nguyen lieu, ta luu chung 1 snapshot cho ca 2 vi tri va danh
-            // dau o AutoCollectModule bang cach chi lay item 1 lan (xem AutoCollectModule).
+            // For double chests, Minecraft merges both halves into a single 54-slot inventory - to
+            // keep things simple and avoid double-counting items when aggregating materials, we store
+            // the same snapshot under both positions and only count it once in AutoCollectModule.
             chestContents.put(pendingSecondary, snapshot);
         }
     }
 
-    /** Doc slot cua container hien dang mo (chi ho tro Chest/Trapped Chest/Barrel/Shulker Box). */
+    /** Reads the slots of the currently open container (only supports Chest/Trapped Chest/Barrel/Shulker Box). */
     private List<ItemStack> readOpenContainerStacks() {
         ScreenHandler handler = mc.player != null ? mc.player.currentScreenHandler : null;
         if (handler == null) return null;
@@ -205,6 +217,6 @@ public class ChestTrackerModule extends Module {
 
     @Override
     public String getInfoString() {
-        return chestContents.size() + " ruong";
+        return chestContents.size() + " chests";
     }
 }

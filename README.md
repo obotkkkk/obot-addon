@@ -1,83 +1,90 @@
-# VN Chest Addon (Meteor Client, Fabric 1.21.4)
+# Obot Addon (Meteor Client, Fabric 1.21.4)
 
-Addon cho [Meteor Client](https://meteorclient.com/) dua tren [meteor-addon-template](https://github.com/MeteorDevelopment/meteor-addon-template).
-Yeu cau: Fabric Loader + Meteor Client (build cho **Minecraft 1.21.4**). Litematica la **tuy chon** (soft-dependency)
-- neu khong cai, addon van load binh thuong, chi module `Auto Collect` se khong lam gi ca.
+Addon for [Meteor Client](https://meteorclient.com/) based on [meteor-addon-template](https://github.com/MeteorDevelopment/meteor-addon-template).
+Requires: Fabric Loader + Meteor Client built for **Minecraft 1.21.4**. Litematica is **optional**
+(soft dependency) - if it isn't installed, the addon still loads fine, only the `auto-collect` module
+won't do anything.
 
-## 2 module
+## Modules (menu category: `obot`)
 
-### `ChestAddon > chest-tracker`
-- Moi lan ban mo 1 cai ruong (Chest/Trapped Chest/Barrel/Shulker Box), addon ghi lai (trong RAM, khong luu file)
-  danh sach item dang co trong ruong do.
-- Ruong da mo se duoc ve outline "phat sang" ngoai the gioi - **ke ca 2 nua cua rương doi** (mo 1 nua, ca 2 nua
-  deu sang).
-- Bat/tat module, hoac roi + vao lai the gioi -> du lieu bi xoa sach (reset), dung nhu yeu cau.
+### `chest-tracker`
+- Every time a chest-like block (Chest / Trapped Chest / Barrel / Shulker Box) gets opened, the addon
+  remembers (in RAM only, nothing written to disk) what items are inside it.
+- Opened chests get an outline "glow" rendered in the world - **including both halves of a double chest**
+  (open one half, both halves glow).
+- Toggling the module off/on, or leaving + rejoining the world, wipes the data (reset), as requested.
 
-### `ChestAddon > auto-collect`
-- Doc "Material List" dang active cua Litematica (chinh la material list hien trong info-hub / man hinh
-  Material List cua schematic ban dang dat) de biet con thieu nguyen lieu gi, bao nhieu.
-- Khi ban mo 1 ruong (nen la ruong dang sang o tren), moi tick module tu shift-click 1 stack item **khop voi
-  nguyen lieu con thieu** vao tui do. Item khong nam trong danh sach thieu -> bo qua hoan toan.
-- Tu dung khi: tui do (hotbar + 27 o chinh) het cho trong, HOAC (neu ban bat setting `tu-tat-khi-du-nguyen-lieu`)
-  khi Litematica bao da du tat ca nguyen lieu.
+### `auto-collect`
+- Reads Litematica's currently active Material List (the exact same one shown in the info-hub / Material
+  List screen for the schematic you have placed) to know what materials are still missing and how many.
+- **Automatically opens nearby chests for you** (within `search-range`, default 4.5 blocks) - you no
+  longer need to manually right-click a chest to start looting it.
+- Once a container screen is open, every tick it shift-clicks one item stack that matches something
+  still missing. Anything not on the missing list is skipped entirely.
+- Once a chest has nothing left worth taking, it auto-closes the screen and moves on to the next nearby
+  chest.
+- Stops taking items once your inventory (hotbar + 27 main slots) has no room left, and can optionally
+  auto-disable itself once Litematica reports nothing missing anymore (`auto-disable-when-done` setting).
 
-### Gioi han quan trong (doc truoc khi dung)
-Module `auto-collect` **khong tu di chuyen nhan vat** den tung ruong - khong co pathfinding/Baritone di kem.
-Ban van phai tu di toi va mo tung ruong bang tay (uu tien ruong dang phat sang tu `chest-tracker`); moi lan mo
-ra, module se tu dong "hut" dung phan nguyen lieu con thieu. Neu muon toan bo flow tu dong 100% (tu tim duong,
-tu mo, tu dong nhieu ruong lien tuc) se can them mot module pathfinding rieng - chua co trong ban nay.
+### Important limitation (read before using)
+`auto-collect` does **not** pathfind/walk your character to chests that are far away - no Baritone-style
+navigation is included. You still need to walk within range yourself; once you're close enough, the
+module takes care of opening and looting chests automatically. If you want a fully hands-off flow
+(auto-pathing between many chests), that would need a separate pathfinding module - not included here.
 
 ## Build
 
-### Cach 1: Build tren may ban (can Internet, khong bi chan maven.fabricmc.net / maven.meteordev.org)
+### Option 1: Build locally (needs internet access to maven.fabricmc.net / maven.meteordev.org)
 
-> Luu y: project nay dung Gradle 9 (do Fabric Loom ban moi/meteor-client snapshot yeu cau) - `./gradlew`
-> se tu tai dung Gradle 9.5.1 ve, ban khong can cai san Gradle tren may.
+> Note: this project uses Gradle 9 (required by the current Fabric Loom / meteor-client snapshot).
+> `./gradlew` will download Gradle 9.5.1 automatically - you don't need Gradle preinstalled.
 
 ```bash
 ./gradlew build
 ```
 
-File jar ket qua nam trong `build/libs/meteor-obot-1.0.jar`. Bo vao thu muc `mods/` cung voi Fabric API,
-Fabric Loader va Meteor Client (va Litematica neu muon dung module 2).
+The resulting jar is at `build/libs/meteor-obot-1.0.jar`. Drop it into your `mods/` folder alongside
+Fabric API, Fabric Loader and Meteor Client (and Litematica if you want to use `auto-collect`).
 
-### Cach 2: Build tren GitHub Actions (khong can Internet o may ban)
+### Option 2: Build on GitHub Actions (no internet needed on your own machine)
 
-1. Tao 1 repo GitHub moi, push toan bo thu muc nay len (bao gom ca thu muc `libs/*.jar` - **dung xoa 2 file
-   jar nay**, chung duoc dung de compile-only, khong bi dong goi vao jar cuoi cung).
-2. Workflow `.github/workflows/build.yml` da co san se tu chay `./gradlew build` moi lan push.
-3. Vao tab **Actions** tren GitHub -> chon lan chay moi nhat -> tai file jar trong phan **Artifacts**
-   (ten `vn-chest-addon`).
-4. Neu push len nhanh `main`/`master`, workflow con tu tao 1 GitHub Release ten "Dev Build" (tag `latest`) kem
-   san file jar de tai truc tiep tu tab **Releases**, khong can vao Actions.
+1. Create a new GitHub repo and push this whole folder (including `libs/*.jar` - **do not delete those
+   two jar files**, they're compile-only dependencies and are never bundled into the final jar).
+2. The included workflow `.github/workflows/build.yml` automatically runs `./gradlew build` on every push.
+3. Go to the **Actions** tab on GitHub -> open the latest run -> download the jar from **Artifacts**
+   (named `meteor-obot`).
+4. If you push to `main`/`master`, the workflow also creates a "Dev Build" GitHub Release (tag `latest`)
+   with the jar attached, downloadable straight from the **Releases** tab.
 
-> Luu y: sua ten nhanh trong `on.push.branches` cua `build.yml` neu repo ban dung nhanh khac `main`/`master`.
+> If your repo uses a different default branch, update `on.push.branches` in `build.yml` accordingly.
 
-## Cau truc thu muc
+## Folder structure
 
 ```
 chest-addon/
-├── build.gradle            # cau hinh build, tro toi Meteor maven + libs/ (litematica, malilib)
-├── gradle.properties       # version MC 1.21.4, yarn mappings, ten mod
-├── libs/                   # jar Litematica + MaliLib (chi de compile, khong bundle)
+├── build.gradle             # build config: Meteor maven + libs/ (Litematica, MaliLib)
+├── gradle.properties        # MC 1.21.4, yarn mappings, mod name/version
+├── libs/                    # Litematica + MaliLib jars (compile-only, never bundled)
 ├── .github/workflows/
-│   └── build.yml           # GitHub Action: build + upload artifact + tao release "latest"
+│   └── build.yml            # GitHub Action: build + upload artifact + "latest" release
 └── src/main/
-    ├── java/com/vnaddon/chest/
-    │   ├── ChestAddon.java             # entrypoint chinh
+    ├── java/com/obot/chest/
+    │   ├── ObotAddon.java               # main entrypoint
     │   ├── litematica/
-    │   │   ├── LitematicaCompat.java   # wrapper an toan (check mod co cai khong)
-    │   │   └── LitematicaAccess.java   # goi truc tiep API cua Litematica
+    │   │   ├── LitematicaCompat.java    # safe wrapper (checks the mod is actually installed)
+    │   │   └── LitematicaAccess.java    # direct calls into Litematica's API
     │   └── modules/
     │       ├── ChestTrackerModule.java
     │       └── AutoCollectModule.java
     └── resources/fabric.mod.json
 ```
 
-## Nhung thu ban nen tu kiem tra lai khi build that (danh cho ai muon sua/mo rong code)
+## Notes for anyone extending this code
 
-Toan bo API trong code nay duoc doi chieu truc tiep voi source cua `meteor-client` nhanh 1.21.4 va bytecode
-that cua 2 file jar ban upload (dung `strings`/`unzip` de doc ten class/method vi moi truong nay khong co
-`javap`/mang de tai Fabric maven), nen do chinh xac kha cao. Tuy nhien addon **chua duoc bien dich thu** (sandbox
-nay khong co quyen truy cap maven.fabricmc.net / maven.meteordev.org), nen lan build dau tien tren may ban hoac
-GitHub Actions co the con vai loi cu phap nho can sua - neu gap loi, gui lai log bien dich, minh se sua tiep.
+Every Litematica API call in this project was verified against the real bytecode of the uploaded jar
+(method names AND parameter types, using a small custom class-file parser since this sandbox has no
+`javap`/maven access), and every Meteor Client API call was checked against the actual `meteor-client`
+source for the 1.21.4 branch - so accuracy should be high. That said, the addon has only been verified
+through a real GitHub Actions build up through compiling `LitematicaAccess`/`LitematicaCompat`; the two
+module classes (`ChestTrackerModule`, `AutoCollectModule`) have not been build-verified yet after this
+latest round of changes. If the next build fails, send the log back and it'll get fixed.

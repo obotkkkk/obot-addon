@@ -1,22 +1,22 @@
-package com.vnaddon.chest;
+package com.obot.chest;
 
 import com.mojang.logging.LogUtils;
-import com.vnaddon.chest.modules.AutoCollectModule;
-import com.vnaddon.chest.modules.ChestTrackerModule;
+import com.obot.chest.modules.AutoCollectModule;
+import com.obot.chest.modules.ChestTrackerModule;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
 import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import org.slf4j.Logger;
 
-public class ChestAddon extends MeteorAddon {
+public class ObotAddon extends MeteorAddon {
     public static final Logger LOG = LogUtils.getLogger();
 
-    // Danh muc rieng cho addon, se hien trong menu Meteor (phia ben trai, cung hang voi Combat/Render/...)
+    // Custom category shown in the Meteor module list (next to Combat/Render/...).
     public static final Category CATEGORY = new Category("obot");
 
     @Override
     public void onInitialize() {
-        LOG.info("Initializing VN Chest Addon");
+        LOG.info("Initializing Obot Addon");
 
         Modules.get().add(new ChestTrackerModule());
         Modules.get().add(new AutoCollectModule());
@@ -29,9 +29,9 @@ public class ChestAddon extends MeteorAddon {
 
     @Override
     public String getPackage() {
-        return "com.vnaddon.chest";
+        return "com.obot.chest";
     }
 
-    // Khong co repo Github rieng nen khong override getRepo() - addon van hoat dong binh thuong,
-    // chi la Meteor se khong the tu check update cho addon nay.
+    // No public Github repo configured, so getRepo() is not overridden - the addon still works fine,
+    // Meteor just won't be able to auto-check for updates.
 }

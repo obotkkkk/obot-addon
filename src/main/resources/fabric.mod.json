@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "id": "vnchestaddon",
+  "id": "obotaddon",
   "version": "${version}",
-  "name": "VN Chest Addon",
-  "description": "Meteor Client addon: theo doi + phat sang ruong da mo, va tu dong lay nguyen lieu con thieu theo Material List cua Litematica.",
+  "name": "Obot Addon",
+  "description": "Meteor Client addon: tracks + glows opened chests, and auto-collects missing materials according to Litematica's Material List.",
   "authors": [
     "you"
   ],
@@ -11,7 +11,7 @@
   "environment": "client",
   "entrypoints": {
     "meteor": [
-      "com.vnaddon.chest.ChestAddon"
+      "com.obot.chest.ObotAddon"
     ]
   },
   "custom": {
