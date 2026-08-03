@@ -2,7 +2,9 @@ package com.obot.chest.litematica;
 
 import com.obot.chest.ObotAddon;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.item.Item;
+import net.minecraft.util.math.BlockPos;
 
 import java.util.Collections;
 import java.util.Map;
@@ -45,6 +47,18 @@ public final class LitematicaCompat {
             return LitematicaAccess.hasActiveMaterialList();
         } catch (Throwable t) {
             return false;
+        }
+    }
+
+    /** See {@link LitematicaAccess#findNearestMissingBlockPos}. Returns null on any failure. */
+    public static BlockPos findNearestMissingBlockPos(MinecraftClient mc, BlockPos near) {
+        if (!isAvailable()) return null;
+
+        try {
+            return LitematicaAccess.findNearestMissingBlockPos(mc, near);
+        } catch (Throwable t) {
+            ObotAddon.LOG.error("[Obot Addon] Failed to query Litematica's schematic verifier", t);
+            return null;
         }
     }
 }

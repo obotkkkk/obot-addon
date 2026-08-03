@@ -3,6 +3,8 @@ package com.obot.chest;
 import com.mojang.logging.LogUtils;
 import com.obot.chest.modules.AutoCollectModule;
 import com.obot.chest.modules.ChestTrackerModule;
+import com.obot.chest.modules.FlyGotoModule;
+import com.obot.chest.modules.FlyToPlacementModule;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
 import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.meteorclient.systems.modules.Modules;
@@ -20,6 +22,8 @@ public class ObotAddon extends MeteorAddon {
 
         Modules.get().add(new ChestTrackerModule());
         Modules.get().add(new AutoCollectModule());
+        Modules.get().add(new FlyToPlacementModule());
+        Modules.get().add(new FlyGotoModule());
     }
 
     @Override

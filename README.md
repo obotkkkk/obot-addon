@@ -32,6 +32,32 @@ navigation is included. You still need to walk within range yourself; once you'r
 module takes care of opening and looting chests automatically. If you want a fully hands-off flow
 (auto-pathing between many chests), that would need a separate pathfinding module - not included here.
 
+### `fly-to-placement`
+For servers that tolerate flying freely (like creative mode). Keeps flying toward the CLOSEST position
+that still needs a block placed, according to Litematica's schematic verifier - i.e. the same ghost/
+preview blocks you see for your placed schematic. Pairs well with Litematica's own "print" tool or a
+manual build: this module gets you there, you (or the print tool) place the block, and it automatically
+moves on to the next closest missing position once that one is done. Has a `speed` setting (blocks/tick).
+
+"Smart" flight: flies in a straight line toward the target; if it makes basically no progress for ~5
+seconds in a row (stuck on a wall/roof/terrain), it automatically changes course - flying up and over -
+for a couple of seconds before returning to a direct line.
+
+Requires an enabled Litematica schematic placement. The first time it looks for a target it has to kick
+off Litematica's verifier scan (same as pressing "Verify" in Litematica's placement GUI), which can take
+a moment on large schematics - the module just keeps waiting/checking until it's ready.
+
+### `fly-goto`
+Simple point-to-point flight: enter `x`, `y`, `z` and a `speed`, turn the module on, and it flies straight
+to that position (with the same "stuck for 5s -> fly up and over" smart-avoidance as `fly-to-placement`).
+Can optionally auto-disable itself once you arrive (`auto-disable-on-arrival`, on by default).
+
+### About the flight modules in general
+Both fly modules work by directly setting your velocity every tick toward the target (the same approach
+Meteor's own built-in `Flight` module uses in its "Velocity" mode) - they rely on the server actually
+tolerating that kind of movement, as you described your server does. They are NOT a bypass for servers
+that don't allow flying/would flag it as cheating.
+
 ## Build
 
 ### Option 1: Build locally (needs internet access to maven.fabricmc.net / maven.meteordev.org)
@@ -73,9 +99,13 @@ chest-addon/
     │   ├── litematica/
     │   │   ├── LitematicaCompat.java    # safe wrapper (checks the mod is actually installed)
     │   │   └── LitematicaAccess.java    # direct calls into Litematica's API
+    │   ├── util/
+    │   │   └── FlightController.java    # shared "fly toward a point" logic for the fly modules
     │   └── modules/
     │       ├── ChestTrackerModule.java
-    │       └── AutoCollectModule.java
+    │       ├── AutoCollectModule.java
+    │       ├── FlyToPlacementModule.java
+    │       └── FlyGotoModule.java
     └── resources/fabric.mod.json
 ```
 
@@ -85,6 +115,12 @@ Every Litematica API call in this project was verified against the real bytecode
 (method names AND parameter types, using a small custom class-file parser since this sandbox has no
 `javap`/maven access), and every Meteor Client API call was checked against the actual `meteor-client`
 source for the 1.21.4 branch - so accuracy should be high. That said, the addon has only been verified
-through a real GitHub Actions build up through compiling `LitematicaAccess`/`LitematicaCompat`; the two
-module classes (`ChestTrackerModule`, `AutoCollectModule`) have not been build-verified yet after this
-latest round of changes. If the next build fails, send the log back and it'll get fixed.
+through a real GitHub Actions build up through `LitematicaAccess`/`LitematicaCompat`/`ChestTrackerModule`/
+`AutoCollectModule`'s previous version; `FlyToPlacementModule`, `FlyGotoModule` and the new
+`findNearestMissingBlockPos` addition to `LitematicaAccess` have NOT been build-verified yet.
+
+In particular, `findNearestMissingBlockPos` drives Litematica's `SchematicVerifier` (the same engine
+behind Litematica's own "Verify" GUI) from outside Litematica's own code, which isn't a documented public
+API - it's the most likely spot to need a follow-up fix if the next build fails or the module behaves
+oddly in-game (e.g. never finding a target). If that happens, send the build log (and/or in-game log)
+back and it'll get fixed.
