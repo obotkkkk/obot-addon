@@ -32,6 +32,32 @@ navigation is included. You still need to walk within range yourself; once you'r
 module takes care of opening and looting chests automatically. If you want a fully hands-off flow
 (auto-pathing between many chests), that would need a separate pathfinding module - not included here.
 
+## Build
+
+### Option 1: Build locally (needs internet access to maven.fabricmc.net / maven.meteordev.org)
+
+> Note: this project uses Gradle 9 (required by the current Fabric Loom / meteor-client snapshot).
+> `./gradlew` will download Gradle 9.5.1 automatically - you don't need Gradle preinstalled.
+
+```bash
+./gradlew build
+```
+
+The resulting jar is at `build/libs/meteor-obot-1.0.jar`. Drop it into your `mods/` folder alongside
+Fabric API, Fabric Loader and Meteor Client (and Litematica if you want to use `auto-collect`).
+
+### Option 2: Build on GitHub Actions (no internet needed on your own machine)
+
+1. Create a new GitHub repo and push this whole folder (including `libs/*.jar` - **do not delete those
+   two jar files**, they're compile-only dependencies and are never bundled into the final jar).
+2. The included workflow `.github/workflows/build.yml` automatically runs `./gradlew build` on every push.
+3. Go to the **Actions** tab on GitHub -> open the latest run -> download the jar from **Artifacts**
+   (named `meteor-obot`).
+4. If you push to `main`/`master`, the workflow also creates a "Dev Build" GitHub Release (tag `latest`)
+   with the jar attached, downloadable straight from the **Releases** tab.
+
+> If your repo uses a different default branch, update `on.push.branches` in `build.yml` accordingly.
+
 ## Folder structure
 
 ```
