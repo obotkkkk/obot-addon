@@ -28,6 +28,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -100,6 +101,17 @@ public class AutoCollectModule extends Module {
     // Positions we've already fully looted this session - skipped so we don't just reopen them forever.
     private final Set<BlockPos> doneChests = new HashSet<>();
 
+    // Our own running total of how much of each item is still needed. Litematica's own "missing" count
+    // doesn't necessarily update the instant we take an item out of a chest (it may only refresh
+    // periodically), so relying on it alone would keep letting us take stacks of an item we've actually
+    // already collected enough of - this local copy is decremented immediately after every shift-click,
+    // and is what actually gates whether we take more of that item. It's re-synced from Litematica every
+    // REFRESH_INTERVAL_TICKS so it never drifts far from the truth (e.g. if requirements change because
+    // the schematic placement moved).
+    private final Map<Item, Integer> remainingNeeded = new HashMap<>();
+    private int refreshCooldown = 0;
+    private static final int REFRESH_INTERVAL_TICKS = 40; // 2 seconds
+
     public AutoCollectModule() {
         super(ObotAddon.CATEGORY, "auto-collect", "Auto-opens nearby chests and takes whatever materials Litematica's Material List is still missing.");
     }
@@ -108,7 +120,9 @@ public class AutoCollectModule extends Module {
     public void onActivate() {
         currentTarget = null;
         doneChests.clear();
+        remainingNeeded.clear();
         cooldown = 0;
+        refreshCooldown = 0;
 
         if (!LitematicaCompat.isAvailable()) {
             warning("Litematica was not found in the mods folder - this module won't do anything.");
@@ -121,6 +135,7 @@ public class AutoCollectModule extends Module {
     public void onDeactivate() {
         currentTarget = null;
         doneChests.clear();
+        remainingNeeded.clear();
     }
 
     @EventHandler
@@ -132,9 +147,16 @@ public class AutoCollectModule extends Module {
             return;
         }
 
-        Map<Item, Integer> missing = LitematicaCompat.getMissingMaterials();
+        if (refreshCooldown <= 0) {
+            refreshCooldown = REFRESH_INTERVAL_TICKS;
+            // Re-sync from Litematica. We deliberately OVERWRITE rather than merge: this is what lets a
+            // freshly-confirmed lower number (Litematica catching up after we took some items) actually
+            // stick, instead of the stale higher number lingering forever.
+            remainingNeeded.clear();
+            remainingNeeded.putAll(LitematicaCompat.getMissingMaterials());
+        }
 
-        if (missing.isEmpty()) {
+        if (remainingNeeded.isEmpty()) {
             if (currentTarget != null && mc.currentScreen != null) closeCurrentScreen();
 
             if (autoDisableWhenDone.get() && LitematicaCompat.hasActiveMaterialList()) {
@@ -151,7 +173,7 @@ public class AutoCollectModule extends Module {
         if (containerSlotCount > 0) {
             if (stopWhenFull.get() && isInventoryFull()) return;
 
-            boolean tookSomething = tryTakeOneStack(handler, containerSlotCount, missing);
+            boolean tookSomething = tryTakeOneStack(handler, containerSlotCount);
             if (tookSomething) {
                 cooldown = 2; // give the inventory/server a moment to sync before the next click
                 return;
@@ -225,8 +247,12 @@ public class AutoCollectModule extends Module {
         currentTarget = null;
     }
 
-    /** Shift-clicks the first container slot that matches a missing material. Returns true if it did. */
-    private boolean tryTakeOneStack(ScreenHandler handler, int containerSlotCount, Map<Item, Integer> missing) {
+    /**
+     * Shift-clicks the first container slot that matches an item we still need at least 1 more of, and
+     * immediately decrements our local {@link #remainingNeeded} tracker by however much that stack had
+     * (clamped so it can't go negative-and-still-count). Returns true if it took something.
+     */
+    private boolean tryTakeOneStack(ScreenHandler handler, int containerSlotCount) {
         List<Slot> slots = handler.slots;
 
         for (int i = 0; i < containerSlotCount && i < slots.size(); i++) {
@@ -234,10 +260,11 @@ public class AutoCollectModule extends Module {
             if (stack.isEmpty()) continue;
 
             Item item = stack.getItem();
-            Integer need = missing.get(item);
+            Integer need = remainingNeeded.get(item);
             if (need == null || need <= 0) continue; // not something we still need -> skip entirely
 
             InvUtils.shiftClick().slotId(i);
+            remainingNeeded.put(item, need - stack.getCount());
             return true;
         }
 

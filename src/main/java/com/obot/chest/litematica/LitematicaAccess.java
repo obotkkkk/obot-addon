@@ -12,6 +12,7 @@ import net.minecraft.util.math.BlockPos;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * This class directly touches Litematica's classes (DataManager, MaterialListBase, ...).
@@ -58,9 +59,24 @@ final class LitematicaAccess {
     }
 
     /**
-     * Finds the position closest to {@code center} (within {@code maxRadius} blocks) that Litematica's
-     * schematic overlay says should have a block, but the real world doesn't match yet - i.e. the same
-     * ghost/preview blocks you see rendered for your placed schematic(s).
+     * True if the real world at {@code pos} already matches what the schematic wants there (or the
+     * schematic doesn't want anything there - air). Used by {@link com.obot.chest.util.PlacementNavigator}
+     * to know when its current target is actually done and it should look for a new one.
+     */
+    static boolean isPlacedCorrectly(MinecraftClient mc, BlockPos pos) {
+        WorldSchematic schematicWorld = SchematicWorldHandler.getSchematicWorld();
+        if (schematicWorld == null || mc.world == null) return true;
+
+        BlockState targetState = schematicWorld.getBlockState(pos);
+        if (targetState.isAir()) return true;
+
+        return targetState.equals(mc.world.getBlockState(pos));
+    }
+
+    /**
+     * Finds the position closest to {@code center} (within {@code maxRadius} blocks, excluding anything
+     * in {@code skip}) that Litematica's schematic overlay says should have a block, but the real world
+     * doesn't match yet - i.e. the same ghost/preview blocks you see rendered for your placed schematic(s).
      *
      * This mirrors exactly how the community addon "litematica-printer" finds its next block to place
      * (github.com/aleksilassila/litematica-printer, see Printer.java / SchematicBlockState.java):
@@ -72,12 +88,15 @@ final class LitematicaAccess {
      *
      * Positions are checked in expanding "shells" outward from {@code center} (radius 0, then 1, then 2,
      * ...) so it can return as soon as it finds a match in the closest shell, instead of always scanning
-     * the entire {@code maxRadius} cube.
+     * the entire {@code maxRadius} cube. {@code skip} lets the caller exclude positions it has already
+     * given up on for now (see {@link com.obot.chest.util.PlacementNavigator}'s skip-list/watchdog logic -
+     * without this, a target that can't actually be completed for some reason would be found as "nearest"
+     * forever and the navigator would get stuck sitting on top of it).
      *
      * @return the closest position needing a block, or {@code null} if none was found within range (or
      *         there's no schematic loaded at all).
      */
-    static BlockPos findNearestMissingBlockPos(MinecraftClient mc, BlockPos center, int maxRadius) {
+    static BlockPos findNearestMissingBlockPos(MinecraftClient mc, BlockPos center, int maxRadius, Set<BlockPos> skip) {
         WorldSchematic schematicWorld = SchematicWorldHandler.getSchematicWorld();
         if (schematicWorld == null || mc.world == null) return null;
 
@@ -93,6 +112,7 @@ final class LitematicaAccess {
                         if (Math.max(Math.abs(x), Math.max(Math.abs(y), Math.abs(z))) != r) continue;
 
                         BlockPos pos = center.add(x, y, z);
+                        if (skip.contains(pos)) continue;
 
                         BlockState targetState = schematicWorld.getBlockState(pos);
                         if (targetState.isAir()) continue;
