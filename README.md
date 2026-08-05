@@ -34,18 +34,22 @@ module takes care of opening and looting chests automatically. If you want a ful
 
 ### `fly-to-placement`
 For servers that tolerate flying freely (like creative mode). Keeps flying toward the CLOSEST position
-that still needs a block placed, according to Litematica's schematic verifier - i.e. the same ghost/
-preview blocks you see for your placed schematic. Pairs well with Litematica's own "print" tool or a
-manual build: this module gets you there, you (or the print tool) place the block, and it automatically
-moves on to the next closest missing position once that one is done. Has a `speed` setting (blocks/tick).
+that still needs a block placed - i.e. the same ghost/preview blocks you see for your placed schematic.
+Pairs well with Litematica's own "print" tool (or a similar addon such as
+[litematica-printer](https://github.com/aleksilassila/litematica-printer)) or a manual build: this module
+gets you there, you (or the print tool) place the block, and it automatically moves on to the next closest
+missing position once that one is done. Settings: `speed` (blocks/tick) and `search-radius` (how far
+around you to look, default 32 blocks - larger values search further but cost more performance).
 
 "Smart" flight: flies in a straight line toward the target; if it makes basically no progress for ~5
 seconds in a row (stuck on a wall/roof/terrain), it automatically changes course - flying up and over -
 for a couple of seconds before returning to a direct line.
 
-Requires an enabled Litematica schematic placement. The first time it looks for a target it has to kick
-off Litematica's verifier scan (same as pressing "Verify" in Litematica's placement GUI), which can take
-a moment on large schematics - the module just keeps waiting/checking until it's ready.
+Requires an enabled Litematica schematic placement. Finds its target the same way
+[litematica-printer](https://github.com/aleksilassila/litematica-printer) does: Litematica keeps a virtual
+"schematic world" that already combines every active placement into real-world coordinates (that's what
+draws the ghost blocks you see in-game), so this module just compares that virtual world against the real
+one, block by block, expanding outward from you until it finds the nearest mismatch.
 
 ### `fly-goto`
 Simple point-to-point flight: enter `x`, `y`, `z` and a `speed`, turn the module on, and it flies straight
@@ -114,13 +118,18 @@ chest-addon/
 Every Litematica API call in this project was verified against the real bytecode of the uploaded jar
 (method names AND parameter types, using a small custom class-file parser since this sandbox has no
 `javap`/maven access), and every Meteor Client API call was checked against the actual `meteor-client`
-source for the 1.21.4 branch - so accuracy should be high. That said, the addon has only been verified
-through a real GitHub Actions build up through `LitematicaAccess`/`LitematicaCompat`/`ChestTrackerModule`/
-`AutoCollectModule`'s previous version; `FlyToPlacementModule`, `FlyGotoModule` and the new
-`findNearestMissingBlockPos` addition to `LitematicaAccess` have NOT been build-verified yet.
+source for the 1.21.4 branch. `findNearestMissingBlockPos` (used by `fly-to-placement`) was additionally
+cross-checked against the real source of two other Litematica-related projects to make sure the approach
+matches how actual working tools do it:
+- [maruohon/litematica](https://github.com/maruohon/litematica) - the mod itself.
+- [aleksilassila/litematica-printer](https://github.com/aleksilassila/litematica-printer) - a community
+  addon that does almost exactly what `fly-to-placement` needs (find the next block that doesn't match
+  the schematic yet). Its `Printer.java`/`SchematicBlockState.java` showed that comparing
+  `WorldSchematic.getBlockState(pos)` against the real world directly is the right approach - much
+  simpler (and, it turns out, actually public/usable) compared to the previous attempt at this module,
+  which tried to drive Litematica's internal `SchematicVerifier` and failed to compile because the
+  methods it needed (`updateClosestPositions`, `getClosestMismatchedPositionsFor`) are private.
 
-In particular, `findNearestMissingBlockPos` drives Litematica's `SchematicVerifier` (the same engine
-behind Litematica's own "Verify" GUI) from outside Litematica's own code, which isn't a documented public
-API - it's the most likely spot to need a follow-up fix if the next build fails or the module behaves
-oddly in-game (e.g. never finding a target). If that happens, send the build log (and/or in-game log)
-back and it'll get fixed.
+All of the above said, `fly-to-placement`/`fly-goto`/`FlightController` have only been checked by reading
+code, not by a real compile - if the next GitHub Actions build still fails here, send the log back (build
+logs are the most useful thing to share when something goes wrong).

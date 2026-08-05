@@ -51,13 +51,13 @@ public final class LitematicaCompat {
     }
 
     /** See {@link LitematicaAccess#findNearestMissingBlockPos}. Returns null on any failure. */
-    public static BlockPos findNearestMissingBlockPos(MinecraftClient mc, BlockPos near) {
+    public static BlockPos findNearestMissingBlockPos(MinecraftClient mc, BlockPos center, int maxRadius) {
         if (!isAvailable()) return null;
 
         try {
-            return LitematicaAccess.findNearestMissingBlockPos(mc, near);
+            return LitematicaAccess.findNearestMissingBlockPos(mc, center, maxRadius);
         } catch (Throwable t) {
-            ObotAddon.LOG.error("[Obot Addon] Failed to query Litematica's schematic verifier", t);
+            ObotAddon.LOG.error("[Obot Addon] Failed to read Litematica's schematic overlay", t);
             return null;
         }
     }
