@@ -27,13 +27,17 @@ won't do anything.
 - Stops taking items once your inventory (hotbar + 27 main slots) has no room left, and can optionally
   auto-disable itself once Litematica reports nothing missing anymore (`auto-disable-when-done` setting).
 
-Note on quantities: Litematica's own "missing" count doesn't necessarily update the instant you take an
-item out of a chest - it may only refresh periodically. Relying on it alone would let this module keep
-taking stacks of an item it's already collected enough of (previously the actual bug here - it looked
-like it was "taking everything" once a chest happened to also contain many of the items your schematic
-needs). To fix that, the module keeps its own running count of how much of each item is still needed,
-decrements it immediately after every stack it takes, and only re-syncs from Litematica every couple of
-seconds - so it can't over-collect between refreshes.
+Note on quantities: earlier versions of this module read `MaterialListEntry.getCountMissing()` directly,
+which turned out to be the real bug - decompiling Litematica showed that field is only set once when the
+Material List is (re)created and is **never recomputed automatically** as your inventory changes (calling
+`getMaterialsMissingOnly(true)` only re-filters an already-cached list; it doesn't rescan anything). So the
+"missing" amount for an item just stayed at whatever it was originally, no matter how much had already
+been picked up - which is why it looked like the module was "taking everything" (any item your schematic
+uses at all would look permanently missing). The fix calls `MaterialListUtils.updateAvailableCounts(...)`
+- the same method Litematica's own GUI uses - to refresh each entry's "available" count against your
+CURRENT inventory, and computes missing as `total - available` itself instead of trusting the stale field.
+On top of that, the module still keeps its own local running total between refreshes (decremented the
+instant it takes a stack) so it can't over-collect even in the brief window between two refreshes.
 
 ### Important limitation (read before using)
 `auto-collect` does **not** pathfind/walk your character to chests that are far away - no Baritone-style
@@ -78,6 +82,13 @@ Both fly modules work by directly setting your velocity every tick toward the ta
 Meteor's own built-in `Flight` module uses in its "Velocity" mode) - they rely on the server actually
 tolerating that kind of movement, as you described your server does. They are NOT a bypass for servers
 that don't allow flying/would flag it as cheating.
+
+**Important fix:** earlier versions of both fly modules set `abilities.flying = true` on the client only,
+without ever telling the server about it (`ClientPlayerEntity.sendAbilitiesUpdate()`). Without that call,
+the server never learns the client thinks it's flying and keeps applying its own gravity/speed physics on
+top of whatever we set client-side - this was the actual cause of `fly-goto`'s speed setting appearing to
+do nothing, and it likely made `fly-to-placement` less reliable too. Both modules now call
+`sendAbilitiesUpdate()` whenever the flying ability actually changes.
 
 ## Build
 

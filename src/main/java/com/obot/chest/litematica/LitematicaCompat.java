@@ -28,11 +28,11 @@ public final class LitematicaCompat {
     }
 
     /** See README: this is the data source for Litematica's "material list" (info-hub). */
-    public static Map<Item, Integer> getMissingMaterials() {
+    public static Map<Item, Integer> getMissingMaterials(MinecraftClient mc) {
         if (!isAvailable()) return Collections.emptyMap();
 
         try {
-            return LitematicaAccess.getMissingMaterials();
+            return LitematicaAccess.getMissingMaterials(mc);
         } catch (Throwable t) {
             // Catch every Throwable (including NoClassDefFoundError/NoSuchMethodError) so a different
             // Litematica version doesn't crash the whole addon - only this feature gets disabled.

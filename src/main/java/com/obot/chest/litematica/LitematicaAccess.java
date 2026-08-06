@@ -3,6 +3,7 @@ package com.obot.chest.litematica;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.materials.MaterialListBase;
 import fi.dy.masa.litematica.materials.MaterialListEntry;
+import fi.dy.masa.litematica.materials.MaterialListUtils;
 import fi.dy.masa.litematica.world.SchematicWorldHandler;
 import fi.dy.masa.litematica.world.WorldSchematic;
 import net.minecraft.block.BlockState;
@@ -11,6 +12,7 @@ import net.minecraft.item.Item;
 import net.minecraft.util.math.BlockPos;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -27,23 +29,35 @@ final class LitematicaAccess {
     }
 
     /**
-     * Reads the missing materials from Litematica's currently active Material List.
-     * This is the exact same Material List shown in Litematica's info-hub / material list screen for
-     * the schematic you currently have placed.
+     * Reads the missing materials from Litematica's currently active Material List, computed against
+     * the player's CURRENT inventory.
      *
-     * @return Map[Item -> amount still missing]. Empty if there's no active material list yet (no
-     *         schematic loaded, or "Create material list" hasn't been pressed yet).
+     * IMPORTANT: {@code MaterialListEntry.getCountMissing()} is a plain stored field - it is set once
+     * when the material list is (re)created and is NOT recomputed automatically as items enter your
+     * inventory (confirmed by decompiling Litematica: {@code getMaterialsMissingOnly(refresh)} only
+     * re-filters the cached list, it never rescans anything). Relying on it directly was the cause of
+     * auto-collect over-collecting - it kept seeing the same stale "missing" amount no matter how much
+     * had already been picked up, so it just kept taking matching items.
+     *
+     * The fix: call {@code MaterialListUtils.updateAvailableCounts(entries, player)} - the same public
+     * method Litematica's own GUI uses - to refresh each entry's "available" count against the player's
+     * CURRENT inventory, then compute missing ourselves as {@code total - available} instead of trusting
+     * the stale field.
+     *
+     * @return Map[Item -> amount still missing]. Empty if there's no active material list yet.
      */
-    static Map<Item, Integer> getMissingMaterials() {
+    static Map<Item, Integer> getMissingMaterials(MinecraftClient mc) {
         Map<Item, Integer> result = new HashMap<>();
+        if (mc.player == null) return result;
 
         MaterialListBase list = DataManager.getInstance().getMaterialList();
         if (list == null) return result;
 
-        // getMaterialsMissingOnly(boolean refresh) returns entries where countMissing > 0.
-        // refresh=true makes sure we always read the latest numbers (matching what the HUD shows).
-        for (MaterialListEntry entry : list.getMaterialsMissingOnly(true)) {
-            int missing = entry.getCountMissing();
+        List<MaterialListEntry> entries = list.getMaterialsAll();
+        MaterialListUtils.updateAvailableCounts(entries, mc.player);
+
+        for (MaterialListEntry entry : entries) {
+            int missing = entry.getCountTotal() - entry.getCountAvailable();
             if (missing <= 0) continue;
 
             Item item = entry.getStack().getItem();

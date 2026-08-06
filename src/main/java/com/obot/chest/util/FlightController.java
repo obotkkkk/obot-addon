@@ -1,7 +1,7 @@
 package com.obot.chest.util;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.util.math.Vec3d;
 
 /**
@@ -34,7 +34,7 @@ public class FlightController {
     }
 
     public void start() {
-        PlayerEntity player = mc.player;
+        ClientPlayerEntity player = mc.player;
         if (player == null) return;
 
         prevFlying = player.getAbilities().flying;
@@ -47,7 +47,7 @@ public class FlightController {
     }
 
     public void stop() {
-        PlayerEntity player = mc.player;
+        ClientPlayerEntity player = mc.player;
         if (player == null) {
             started = false;
             return;
@@ -57,6 +57,11 @@ public class FlightController {
             player.setVelocity(Vec3d.ZERO);
             player.getAbilities().flying = prevFlying;
             player.getAbilities().allowFlying = prevAllowFlying;
+            // Tell the SERVER about the ability change too - without this, the server never learns the
+            // client thinks it's flying/not-flying, and keeps applying its own gravity/speed physics on
+            // top of whatever we set client-side, which is what was causing "speed does nothing" and
+            // rubber-banding. This one call was the actual bug.
+            player.sendAbilitiesUpdate();
         }
 
         started = false;
@@ -68,7 +73,7 @@ public class FlightController {
      * @return the current distance to the target (before this tick's movement).
      */
     public double tick(Vec3d target, double speed) {
-        PlayerEntity player = mc.player;
+        ClientPlayerEntity player = mc.player;
         if (player == null) return Double.MAX_VALUE;
         if (!started) start();
 
@@ -100,8 +105,10 @@ public class FlightController {
             direction = toTarget.normalize();
         }
 
+        boolean wasFlying = player.getAbilities().flying;
         player.getAbilities().flying = true;
         if (!player.getAbilities().creativeMode) player.getAbilities().allowFlying = true;
+        if (!wasFlying) player.sendAbilitiesUpdate(); // tell the server, see note in stop() above
 
         player.setVelocity(direction.multiply(speed));
         player.fallDistance = 0;

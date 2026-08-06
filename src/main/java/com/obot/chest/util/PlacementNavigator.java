@@ -74,6 +74,10 @@ public class PlacementNavigator {
             mc.player.setVelocity(Vec3d.ZERO);
             mc.player.getAbilities().flying = prevFlying;
             mc.player.getAbilities().allowFlying = prevAllowFlying;
+            // Tell the SERVER about the ability change too - without this the server never learns the
+            // client stopped (or started) flying and keeps enforcing its own physics on top of whatever
+            // we set client-side. This was the actual cause of "speed does nothing" / rubber-banding.
+            mc.player.sendAbilitiesUpdate();
         }
         reset();
     }
@@ -263,8 +267,10 @@ public class PlacementNavigator {
         }
 
         PlayerAbilities abilities = player.getAbilities();
+        boolean wasFlying = abilities.flying;
         abilities.flying = true;
         if (!abilities.creativeMode) abilities.allowFlying = true;
+        if (!wasFlying) player.sendAbilitiesUpdate(); // tell the server, see note in stop() above
 
         double moveSpeed = Math.min(speed, dist);
         player.setVelocity(diff.normalize().multiply(moveSpeed));

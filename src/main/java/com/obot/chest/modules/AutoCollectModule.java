@@ -153,7 +153,7 @@ public class AutoCollectModule extends Module {
             // freshly-confirmed lower number (Litematica catching up after we took some items) actually
             // stick, instead of the stale higher number lingering forever.
             remainingNeeded.clear();
-            remainingNeeded.putAll(LitematicaCompat.getMissingMaterials());
+            remainingNeeded.putAll(LitematicaCompat.getMissingMaterials(mc));
         }
 
         if (remainingNeeded.isEmpty()) {
@@ -292,7 +292,7 @@ public class AutoCollectModule extends Module {
     @Override
     public String getInfoString() {
         if (!LitematicaCompat.isAvailable()) return "no litematica";
-        Map<Item, Integer> missing = LitematicaCompat.getMissingMaterials();
+        Map<Item, Integer> missing = LitematicaCompat.getMissingMaterials(mc);
         return missing.size() + " missing";
     }
 }
